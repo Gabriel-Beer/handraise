@@ -58,13 +58,35 @@ wait_for_user()
 `wait_for_user` returns early with `timed_out: true` after 25 minutes so it stays under
 Claude Code's idle limit for stdio tools; the agent just calls it again.
 
+### Push instead of blocking
+
+Claude Code can let an MCP server push messages into a session (*channels*, a research
+preview). Start Claude with the server registered as a channel:
+
+```sh
+claude --channels server:handraise
+```
+
+Now the agent does not need to block: the moment a batch is ready, the server rings the
+session with the answers, and the agent calls `wait_for_user` once to collect and
+acknowledge them. The same thing happens right after `claude --channels server:handraise
+--resume <id>`, so a dead agent picks up where it left off. An alias keeps it out of
+the way:
+
+```sh
+alias claude='claude --channels server:handraise'
+```
+
+Without the flag nothing changes: the notification is dropped by Claude Code and agents
+rely on `wait_for_user`.
+
 ## What you do
 
 - **Circle**: finishes a plain task. On a question it opens a text field; Enter saves the answer, Escape closes the field.
 - **Paper plane**: same, but delivered to the agent right away instead of waiting for the rest. It appears on hover for plain tasks and next to the field for questions.
 - Only four tasks show at a time, most urgent first, with a `+N more` line for the rest.
 - When every task of one agent is done, the card shows *All done* until the agent's next `wait_for_user` collects the results. An agent that never calls it never hears back, so the cross lets you drop them.
-- If that agent's session is gone, the card says the answers will be delivered as soon as you restart the agent and gives you the command to paste: `claude --resume <id> "Collect my answers with handraise wait_for_user. If that tool is not available yet ..."`. The prompt makes the resumed agent collect them right away; the retry part is there because Claude Code starts the first turn before the MCP server has finished connecting. A copy button and a cross to drop the answers sit next to it.
+- If that agent's session is gone, the card says the answers will be delivered as soon as you restart the agent and gives you the command to paste: `claude --channels server:handraise --resume <id>`. The server rings the resumed agent as soon as it connects (see *Push* below). A copy button and a cross to drop the answers sit next to it.
 
 Priority is shown as contrast rather than color: P1 is a solid disc, P4 and beyond are barely there.
 
@@ -97,10 +119,10 @@ All in `Overlay.swift`, then rerun `./install.sh`:
 ## Check
 
 ```sh
-uv run check.py
+python3 check.py
 ```
 
-Drives the real server over stdio and plays the overlay by editing the task files.
+Drives the real server over raw stdio JSON-RPC, plays the overlay by editing the task files, and checks the channel notification.
 
 ## Uninstall
 
