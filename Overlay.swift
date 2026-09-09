@@ -201,11 +201,12 @@ struct OverlayView: View {
                     VStack(alignment: .leading, spacing: 4) {  // header and its status read as one block
                         Text("\(store.sessions[sid]?.name ?? "agent") · \(sid.prefix(4))").font(.caption).opacity(0.6)
                         if hasDone && !alive {
-                            // the prompt makes the resumed agent collect right away instead of waiting to be told
-                            let cmd = "claude --resume \(store.sessions[sid]?.resume ?? sid) \"Collect my answers with wait_for_user\""
+                            // The prompt makes the resumed agent collect right away. Claude Code runs it before the MCP
+                            // server has finished connecting, hence the retry instruction.
+                            let cmd = "claude --resume \(store.sessions[sid]?.resume ?? sid) \"Collect my answers with handraise wait_for_user. If that tool is not available yet the server is still connecting: wait 5 seconds and check again before giving up.\""
                             Text("Will be delivered as soon as you restart the agent:").font(.caption).opacity(0.7)
                             HStack(spacing: 8) {
-                                Text(cmd).font(.caption.monospaced()).lineLimit(3)
+                                Text(cmd).font(.caption.monospaced()).lineLimit(6)
                                 Spacer(minLength: 0)
                                 CopyButton(text: cmd)
                                 IconButton(icon: "xmark.circle", hot: "xmark.circle.fill", armed: store.armed) { store.discard(session: sid) }

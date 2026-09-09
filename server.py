@@ -60,7 +60,7 @@ def announce():
 
 for d in (TASKS, SESSIONS):
     d.mkdir(parents=True, exist_ok=True)
-write(SESSIONS / f"{SID}.json", {"pid": os.getpid(), "cwd": os.getcwd(), "name": Path.cwd().name})
+announce()
 
 
 @mcp.tool()
@@ -68,7 +68,6 @@ def add_task(title: str, priority: int = 5, ask: bool = False) -> str:
     """Show a task on the user's screen overlay. priority 1 = most urgent, bigger = less urgent.
     ask=True when you need a text answer back ("check X and tell me what you see").
     Afterwards call wait_for_user to get the results."""
-    announce()  # the transcript exists by now, so the resume id can be resolved
     name = f"{max(0, min(999, priority)):03d}-{time.time_ns()}.json"
     write(TASKS / name, {"title": title.strip(), "session": SID, "ask": ask,
                          "done": False, "answer": None, "send_now": False})
