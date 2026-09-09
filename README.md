@@ -86,7 +86,7 @@ rely on `wait_for_user`.
 - **Paper plane**: same, but delivered to the agent right away instead of waiting for the rest. It appears on hover for plain tasks and next to the field for questions.
 - Only four tasks show at a time, most urgent first, with a `+N more` line for the rest.
 - When every task of one agent is done, the card shows *All done* until the agent's next `wait_for_user` collects the results. An agent that never calls it never hears back, so the cross lets you drop them.
-- If that agent's session is gone, the card says the answers will be delivered as soon as you restart the agent and gives you the command to paste: `claude --channels server:handraise --resume <id>`. The server rings the resumed agent as soon as it connects (see *Push* below). A copy button and a cross to drop the answers sit next to it.
+- If that agent's session is gone, the card says the answers will be delivered as soon as you restart the agent and puts `claude --channels server:handraise --resume <id>` behind the copy button. The server rings the resumed agent as soon as it connects (see *Push* below). A copy button and a cross to drop the answers sit next to it.
 
 Priority is shown as contrast rather than color: P1 is a solid disc, P4 and beyond are barely there.
 

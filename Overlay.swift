@@ -201,13 +201,12 @@ struct OverlayView: View {
                     VStack(alignment: .leading, spacing: 4) {  // header and its status read as one block
                         Text("\(store.sessions[sid]?.name ?? "agent") · \(sid.prefix(4))").font(.caption).opacity(0.6)
                         if hasDone && !alive {
-                            // With the channel flag the server rings the resumed agent as soon as it connects.
+                            // The copy button carries the full command; showing it would eat the card.
                             let cmd = "claude --channels server:handraise --resume \(store.sessions[sid]?.resume ?? sid)"
-                            Text("Will be delivered as soon as you restart the agent:").font(.caption).opacity(0.7)
                             HStack(spacing: 8) {
-                                Text(cmd).font(.caption.monospaced()).lineLimit(3)
+                                Text("Will be delivered as soon as you restart the agent").font(.caption).opacity(0.7)
                                 Spacer(minLength: 0)
-                                CopyButton(text: cmd)
+                                CopyButton(text: cmd).help("Copy the resume command")
                                 IconButton(icon: "xmark.circle", hot: "xmark.circle.fill", armed: store.armed) { store.discard(session: sid) }
                             }
                         } else if hasDone && !hasOpen {
