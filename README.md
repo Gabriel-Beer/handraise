@@ -63,8 +63,8 @@ Claude Code's idle limit for stdio tools; the agent just calls it again.
 - **Circle**: finishes a plain task. On a question it opens a text field; Enter saves the answer, Escape closes the field.
 - **Paper plane**: same, but delivered to the agent right away instead of waiting for the rest. It appears on hover for plain tasks and next to the field for questions.
 - Only four tasks show at a time, most urgent first, with a `+N more` line for the rest.
-- When every task of one agent is done, the card shows *All done* until the agent picks the results up.
-- If that agent's session is gone, the card says the answers will be delivered as soon as you restart the agent, with the `claude --resume <id>` command, a copy button, and a cross to drop them. Run it, and the resumed agent collects your answers.
+- When every task of one agent is done, the card shows *All done* until the agent's next `wait_for_user` collects the results. An agent that never calls it never hears back, so the cross lets you drop them.
+- If that agent's session is gone, the card says the answers will be delivered as soon as you restart the agent and gives you the command to paste: `claude --resume <id> "Collect my answers with wait_for_user"`. The prompt at the end makes the resumed agent collect them right away. A copy button and a cross to drop the answers sit next to it.
 
 Priority is shown as contrast rather than color: P1 is a solid disc, P4 and beyond are barely there.
 

@@ -199,23 +199,24 @@ struct OverlayView: View {
                 let alive = store.alive[sid] ?? false
                 if !mine.isEmpty || hasDone {
                     VStack(alignment: .leading, spacing: 4) {  // header and its status read as one block
-                        HStack {
-                            Text("\(store.sessions[sid]?.name ?? "agent") · \(sid.prefix(4))").font(.caption).opacity(0.6)
-                            Spacer(minLength: 0)
-                            if hasDone && (!alive || !hasOpen) {
-                                IconButton(icon: "xmark.circle", hot: "xmark.circle.fill", armed: store.armed) { store.discard(session: sid) }
-                            }
-                        }
+                        Text("\(store.sessions[sid]?.name ?? "agent") · \(sid.prefix(4))").font(.caption).opacity(0.6)
                         if hasDone && !alive {
-                            let cmd = "claude --resume \(store.sessions[sid]?.resume ?? sid)"
+                            // the prompt makes the resumed agent collect right away instead of waiting to be told
+                            let cmd = "claude --resume \(store.sessions[sid]?.resume ?? sid) \"Collect my answers with wait_for_user\""
                             Text("Will be delivered as soon as you restart the agent:").font(.caption).opacity(0.7)
                             HStack(spacing: 8) {
-                                Text(cmd).font(.caption.monospaced()).lineLimit(2)
+                                Text(cmd).font(.caption.monospaced()).lineLimit(3)
                                 Spacer(minLength: 0)
                                 CopyButton(text: cmd)
+                                IconButton(icon: "xmark.circle", hot: "xmark.circle.fill", armed: store.armed) { store.discard(session: sid) }
                             }
                         } else if hasDone && !hasOpen {
-                            Label("All done, waiting for the agent to pick it up", systemImage: "checkmark").font(.caption).opacity(0.6)
+                            HStack(spacing: 8) {
+                                Label("All done, waiting for the agent to call wait_for_user", systemImage: "checkmark")
+                                    .font(.caption).opacity(0.6)
+                                Spacer(minLength: 0)
+                                IconButton(icon: "xmark.circle", hot: "xmark.circle.fill", armed: store.armed) { store.discard(session: sid) }
+                            }
                         }
                     }
                     ForEach(mine) { Row(task: $0, store: store) }
