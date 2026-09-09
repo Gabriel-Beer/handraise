@@ -167,27 +167,18 @@ struct Row: View {
     }
 }
 
-struct ResumeHint: View {
-    let cmd: String
+struct CopyButton: View {
+    let text: String
     @State private var copied = false
     var body: some View {
-        HStack(spacing: 8) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Agent offline. Resume it to deliver:").font(.caption).opacity(0.7)
-                Text(cmd).font(.caption.monospaced()).lineLimit(2)
-            }
-            Spacer(minLength: 0)
-            Button {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(cmd, forType: .string)
-                copied = true
-            } label: {
-                Image(systemName: copied ? "checkmark" : "doc.on.doc").font(.body).foregroundStyle(Color.white.opacity(0.8))
-            }
-            .buttonStyle(.plain)
+        Button {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(text, forType: .string)
+            copied = true
+        } label: {
+            Image(systemName: copied ? "checkmark" : "doc.on.doc").font(.body).foregroundStyle(Color.white.opacity(0.8))
         }
-        .padding(8)
-        .background(Color.white.opacity(0.1), in: .rect(cornerRadius: 10))
+        .buttonStyle(.plain)
     }
 }
 
@@ -205,19 +196,29 @@ struct OverlayView: View {
                 let mine = visible.filter { $0.session == sid }
                 let hasOpen = open.contains { $0.session == sid }
                 let hasDone = store.tasks.contains { $0.session == sid && $0.done }
+                let alive = store.alive[sid] ?? false
                 if !mine.isEmpty || hasDone {
-                    Text("\(store.sessions[sid]?.name ?? "agent") · \(sid.prefix(4))").font(.caption).opacity(0.6)
-                    ForEach(mine) { Row(task: $0, store: store) }
-                    if hasDone && !(store.alive[sid] ?? false) {
-                        ResumeHint(cmd: "claude --resume \(store.sessions[sid]?.resume ?? sid)")
-                    } else if hasDone && !hasOpen {
+                    VStack(alignment: .leading, spacing: 4) {  // header and its status read as one block
                         HStack {
-                            Label("All done, waiting for the agent to pick it up", systemImage: "checkmark")
-                                .font(.caption).opacity(0.6)
+                            Text("\(store.sessions[sid]?.name ?? "agent") · \(sid.prefix(4))").font(.caption).opacity(0.6)
                             Spacer(minLength: 0)
-                            IconButton(icon: "xmark.circle", hot: "xmark.circle.fill", armed: store.armed) { store.discard(session: sid) }
+                            if hasDone && (!alive || !hasOpen) {
+                                IconButton(icon: "xmark.circle", hot: "xmark.circle.fill", armed: store.armed) { store.discard(session: sid) }
+                            }
+                        }
+                        if hasDone && !alive {
+                            let cmd = "claude --resume \(store.sessions[sid]?.resume ?? sid)"
+                            Text("Will be delivered as soon as you restart the agent:").font(.caption).opacity(0.7)
+                            HStack(spacing: 8) {
+                                Text(cmd).font(.caption.monospaced()).lineLimit(2)
+                                Spacer(minLength: 0)
+                                CopyButton(text: cmd)
+                            }
+                        } else if hasDone && !hasOpen {
+                            Label("All done, waiting for the agent to pick it up", systemImage: "checkmark").font(.caption).opacity(0.6)
                         }
                     }
+                    ForEach(mine) { Row(task: $0, store: store) }
                 }
             }
             if open.count > shown {
