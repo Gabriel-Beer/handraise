@@ -1,22 +1,16 @@
 class Handraise < Formula
   desc "Liquid Glass overlay where your Claude Code agents raise their hand"
   homepage "https://github.com/Gabriel-Beer/handraise"
-  url "https://github.com/Gabriel-Beer/handraise.git", tag: "v0.1.0", revision: "ba8c345a07c0fc2d6ec9f8b14d8665036c23fd11"
+  url "https://github.com/Gabriel-Beer/handraise.git", tag: "v0.2.0", revision: "bd059d8df30da78ea46d93965871acac601d262c"
   license "MIT"
   head "https://github.com/Gabriel-Beer/handraise.git", branch: "main"
 
   depends_on macos: :tahoe # Liquid Glass
-  depends_on "uv"
 
   def install
     system "swiftc", "-O", "-o", "handraise-overlay", "Overlay.swift"
-    bin.install "handraise-overlay"
-    libexec.install "server.py"
-    (bin/"handraise-server").write <<~SH
-      #!/bin/sh
-      exec "#{formula_opt_bin("uv")}/uv" run --script "#{libexec}/server.py" "$@"
-    SH
-    chmod 0755, bin/"handraise-server"
+    system "swiftc", "-O", "-o", "handraise-server", "Server.swift"
+    bin.install "handraise-overlay", "handraise-server"
   end
 
   service do
