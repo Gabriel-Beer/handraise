@@ -17,19 +17,30 @@ type an answer, and the agent gets everything back in its session.
 
 ## Install
 
+With Homebrew (the repo is its own tap):
+
+```sh
+brew tap gabriel-beer/handraise https://github.com/Gabriel-Beer/handraise
+brew install handraise
+brew services start handraise
+claude mcp add --scope user handraise -- "$(brew --prefix)/opt/handraise/bin/handraise-server"
+```
+
+Or from source:
+
 ```sh
 git clone https://github.com/Gabriel-Beer/handraise.git
 cd handraise
 ./install.sh
 ```
 
-`install.sh` compiles the overlay, registers it as a login item through launchd
-(`~/Library/LaunchAgents/com.handraise.overlay.plist`), and adds the `handraise`
-MCP server to Claude Code for all your projects. Claude sessions that were already
-open need `/mcp` or a restart to see the new tools.
+Both keep the overlay running as a login item (`brew services`, or
+`~/Library/LaunchAgents/com.handraise.overlay.plist` from `install.sh`) and add the
+`handraise` MCP server to Claude Code for all your projects. Claude sessions that were
+already open need `/mcp` or a restart to see the new tools.
 
 The menu bar gets a small icon with **Hide overlay** and **Quit**. After a Quit, bring
-it back with:
+it back with `brew services restart handraise`, or for a source install:
 
 ```sh
 launchctl kickstart gui/$(id -u)/com.handraise.overlay
@@ -119,6 +130,17 @@ python3 check.py
 Drives the real server over raw stdio JSON-RPC, plays the overlay by editing the task files, and stands in for the session inbox to check what the server posts.
 
 ## Uninstall
+
+Homebrew:
+
+```sh
+brew services stop handraise
+brew uninstall handraise
+claude mcp remove --scope user handraise
+rm -rf ~/.handraise
+```
+
+Source install:
 
 ```sh
 launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.handraise.overlay.plist
