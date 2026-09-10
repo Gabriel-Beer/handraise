@@ -1,7 +1,7 @@
 class Handraise < Formula
   desc "Liquid Glass overlay where your Claude Code agents raise their hand"
   homepage "https://github.com/Gabriel-Beer/handraise"
-  url "https://github.com/Gabriel-Beer/handraise.git", tag: "v0.2.0", revision: "bd059d8df30da78ea46d93965871acac601d262c"
+  url "https://github.com/Gabriel-Beer/handraise.git", tag: "v0.3.0", revision: "2477eab1fe12e11e04e557da0b7aeca13d2b2378"
   license "GPL-3.0-or-later"
   head "https://github.com/Gabriel-Beer/handraise.git", branch: "main"
 
