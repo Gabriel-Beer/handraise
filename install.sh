@@ -3,7 +3,7 @@
 set -e
 cd "$(dirname "$0")"
 swiftc -O -o Handraise Overlay.swift
-uv sync --script server.py
+swiftc -O -o handraise-server Server.swift
 
 PLIST=~/Library/LaunchAgents/com.handraise.overlay.plist
 cat > "$PLIST" <<PL
@@ -20,5 +20,5 @@ launchctl bootout "gui/$(id -u)" "$PLIST" 2>/dev/null || true
 launchctl bootstrap "gui/$(id -u)" "$PLIST"
 
 claude mcp remove --scope user handraise >/dev/null 2>&1 || true
-claude mcp add --scope user handraise -- uv run "$PWD/server.py"
+claude mcp add --scope user handraise -- "$PWD/handraise-server"
 echo "installed: overlay running, MCP server 'handraise' registered. Restart open Claude sessions to see the tools."

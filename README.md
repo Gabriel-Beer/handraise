@@ -4,7 +4,7 @@ A Liquid Glass overlay for macOS where your Claude Code agents raise their hand.
 Agents post tasks and questions for you, ranked by priority. You tick them off or
 type an answer, and the agent gets everything back in its session.
 
-- One Swift file for the overlay, one Python file for the MCP server, no framework, no database.
+- Two Swift files, the overlay and the MCP server, no framework, no dependencies, no database.
 - Tasks are plain JSON files in `~/.handraise/tasks/`, so any number of agents can write at once.
 - Clicks pass through the card to whatever is behind it, except on the buttons themselves.
 - The overlay hides itself when there is nothing to do.
@@ -12,7 +12,6 @@ type an answer, and the agent gets everything back in its session.
 ## Requirements
 
 - macOS 26 (the card uses Liquid Glass) with the Xcode Command Line Tools for `swiftc`
-- [uv](https://docs.astral.sh/uv/) to run the Python server
 - [Claude Code](https://claude.com/claude-code)
 
 ## Install
@@ -125,7 +124,7 @@ All in `Overlay.swift`, then rerun `./install.sh`:
 ## Check
 
 ```sh
-python3 check.py
+swiftc -O -o handraise-server Server.swift && swift Check.swift
 ```
 
 Drives the real server over raw stdio JSON-RPC, plays the overlay by editing the task files, and stands in for the session inbox to check what the server posts.
