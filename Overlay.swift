@@ -27,6 +27,9 @@ func atomicWrite(_ data: Data, to url: URL) {
     rename(tmp.path, url.path)
 }
 
+/// Every Liquid Glass knob the menu bar exposes. strength 0 = no glass, 1 = the stock material.
+struct Look: Codable { var strength = 0.5, clear = false, interactive = false, tint = "None" }
+
 final class Store: ObservableObject {
     @Published var tasks: [Task] = []            // open ones, plus done ones the agent hasn't collected yet
     @Published var alive: [String: Bool] = [:]   // session id -> its MCP server process still runs
@@ -34,6 +37,9 @@ final class Store: ObservableObject {
     var hot: [String: CGRect] = [:]              // frames (SwiftUI global) of what takes clicks; the timer reads it
     @Published var editing: String?              // task id whose answer field is open
     @Published var folded: Set<String> = []       // sessions whose tasks are folded away under their name
+    @Published var look = UserDefaults.standard.data(forKey: "look").flatMap { try? JSONDecoder().decode(Look.self, from: $0) } ?? Look() {
+        didSet { UserDefaults.standard.set(try? JSONEncoder().encode(look), forKey: "look") }  // the Liquid Glass knobs, remembered
+    }
     var sessions: [String: Session] = [:]
     private var watcher: DispatchSourceFileSystemObject?
 
@@ -263,8 +269,16 @@ struct OverlayView: View {
         .padding(.vertical, 14).padding(.horizontal, 16)
         .frame(width: 320, alignment: .leading)
         .fixedSize(horizontal: false, vertical: true)
-        .background(Color.clear.glassEffect(.regular, in: .rect(cornerRadius: 16)).opacity(0.5))  // 0 = no glass, 1 = full frost
+        .background(Color.clear.glassEffect(glass, in: .rect(cornerRadius: 16)).opacity(store.look.strength))
         .onGeometryChange(for: CGSize.self) { $0.size } action: { resized($0) }
+    }
+
+    /// The Liquid Glass recipe from the menu bar knobs.
+    var glass: Glass {
+        var g: Glass = store.look.clear ? .clear : .regular
+        if store.look.interactive { g = g.interactive() }
+        if let c = ["Light": Color.white, "Dark": .black, "Accent": .accentColor][store.look.tint] { g = g.tint(c) }
+        return g
     }
 
     /// The disclosure next to an agent's name: points down when its tasks show, right when they are folded away.
@@ -345,6 +359,7 @@ let logo: NSImage = {
 final class Bar: NSObject {
     let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     let toggle = NSMenuItem(title: "Hide overlay", action: #selector(toggleOverlay), keyEquivalent: "")
+    let glass = NSMenu(title: "Glass")
     override init() {
         super.init()
         item.button?.image = logo
@@ -352,9 +367,54 @@ final class Bar: NSObject {
         toggle.target = self
         menu.addItem(toggle)
         menu.addItem(.separator())
+        // Glass submenu: variant, hover/press response, tint, then a strength slider. Keys map onto Look.
+        for (title, key) in [("Regular", "clear=0"), ("Clear", "clear=1"), ("-", ""), ("Interactive", "interactive"), ("-", ""),
+                             ("No tint", "tint=None"), ("Light tint", "tint=Light"), ("Dark tint", "tint=Dark"), ("Accent tint", "tint=Accent"),
+                             ("-", ""), ("Strength", "")] {
+            if title == "-" { glass.addItem(.separator()); continue }
+            let i = NSMenuItem(title: title, action: key.isEmpty ? nil : #selector(pick(_:)), keyEquivalent: "")
+            i.target = self
+            i.representedObject = key
+            glass.addItem(i)
+        }
+        let slider = NSSlider(value: store.look.strength, minValue: 0, maxValue: 1, target: self, action: #selector(strength(_:)))
+        slider.isContinuous = true  // the card follows the knob live
+        slider.frame = NSRect(x: 14, y: 4, width: 172, height: 20)
+        let box = NSView(frame: NSRect(x: 0, y: 0, width: 200, height: 28))
+        box.addSubview(slider)
+        let row = NSMenuItem()
+        row.view = box
+        glass.addItem(row)
+        let sub = NSMenuItem(title: "Glass", action: nil, keyEquivalent: "")
+        sub.submenu = glass
+        menu.addItem(sub)
+        menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         item.menu = menu
+        refresh()
     }
+    @objc func pick(_ i: NSMenuItem) {
+        switch i.representedObject as? String {
+        case "clear=0": store.look.clear = false
+        case "clear=1": store.look.clear = true
+        case "interactive": store.look.interactive.toggle()
+        case let k? where k.hasPrefix("tint="): store.look.tint = String(k.dropFirst(5))
+        default: break
+        }
+        refresh()
+    }
+    func refresh() {  // check marks follow the Look
+        for i in glass.items {
+            switch i.representedObject as? String {
+            case "clear=0": i.state = store.look.clear ? .off : .on
+            case "clear=1": i.state = store.look.clear ? .on : .off
+            case "interactive": i.state = store.look.interactive ? .on : .off
+            case let k? where k.hasPrefix("tint="): i.state = store.look.tint == String(k.dropFirst(5)) ? .on : .off
+            default: break
+            }
+        }
+    }
+    @objc func strength(_ s: NSSlider) { store.look.strength = s.doubleValue }
     @objc func toggleOverlay() {
         hidden.toggle()
         toggle.title = hidden ? "Show overlay" : "Hide overlay"
