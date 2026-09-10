@@ -8,13 +8,19 @@ class Handraise < Formula
   depends_on macos: :tahoe # Liquid Glass
 
   def install
-    system "swiftc", "-O", "-o", "handraise-overlay", "Overlay.swift"
+    system "swiftc", "-O", "-o", "Handraise", "Overlay.swift"
     system "swiftc", "-O", "-o", "handraise-server", "Server.swift"
-    bin.install "handraise-overlay", "handraise-server"
+    contents = buildpath/"Handraise.app/Contents"
+    (contents/"MacOS").install "Handraise"
+    (contents/"Resources").install "AppIcon.icns"
+    contents.install "Info.plist"
+    prefix.install "Handraise.app"
+    bin.install "handraise-server"
+    bin.install_symlink prefix/"Handraise.app/Contents/MacOS/Handraise" => "handraise-overlay"
   end
 
   service do
-    run opt_bin/"handraise-overlay"
+    run opt_prefix/"Handraise.app/Contents/MacOS/Handraise"
     keep_alive successful_exit: false
     log_path var/"log/handraise.log"
     error_log_path var/"log/handraise.log"
@@ -22,6 +28,8 @@ class Handraise < Formula
 
   def caveats
     <<~EOS
+      Put the app where Finder and Spotlight see it:
+        ln -sf #{opt_prefix}/Handraise.app ~/Applications/
       Start the overlay; it stays as a login item:
         brew services start handraise
       Give Claude Code the tools, once:

@@ -4,7 +4,7 @@ A Liquid Glass overlay for macOS where your Claude Code agents raise their hand.
 Agents post tasks and questions for you, ranked by priority. You tick them off or
 type an answer, and the agent gets everything back in its session.
 
-- Two Swift files, the overlay and the MCP server, no framework, no dependencies, no database.
+- Swift only: the overlay, the MCP server and the icon. No framework, no dependencies, no database.
 - Tasks are plain JSON files in `~/.handraise/tasks/`, so any number of agents can write at once.
 - Clicks pass through the card to whatever is behind it, except on the buttons themselves.
 - The overlay hides itself when there is nothing to do.
@@ -22,6 +22,7 @@ With Homebrew (the repo is its own tap; Homebrew 6 asks you to trust a third-par
 brew trust --tap https://github.com/Gabriel-Beer/handraise
 brew tap gabriel-beer/handraise https://github.com/Gabriel-Beer/handraise
 brew install handraise
+ln -sf "$(brew --prefix)/opt/handraise/Handraise.app" ~/Applications/
 brew services start handraise
 claude mcp add --scope user handraise -- "$(brew --prefix)/opt/handraise/bin/handraise-server"
 ```
@@ -34,12 +35,12 @@ cd handraise
 ./install.sh
 ```
 
-Both keep the overlay running as a login item (`brew services`, or
-`~/Library/LaunchAgents/com.handraise.overlay.plist` from `install.sh`) and add the
-`handraise` MCP server to Claude Code for all your projects. Claude sessions that were
+Both put `Handraise.app` in `~/Applications` (a menu bar app, no Dock tile), keep it
+running as a login item (`brew services`, or `~/Library/LaunchAgents/com.handraise.overlay.plist`
+from `install.sh`), and add the `handraise` MCP server to Claude Code for all your projects. Claude sessions that were
 already open need `/mcp` or a restart to see the new tools.
 
-The menu bar gets a small icon with **Hide overlay** and **Quit**. After a Quit, bring
+The menu bar gets a small icon with **Hide overlay**, a **Glass** submenu with every Liquid Glass knob (Regular or Clear variant, interactive shimmer, a tint, and a strength slider from clear to the stock material, all remembered), and **Quit**. After a Quit, bring
 it back with `brew services restart handraise`, or for a source install:
 
 ```sh
@@ -117,10 +118,10 @@ machine.
 
 All in `Overlay.swift`, then rerun `./install.sh`:
 
-- glass strength: the `0.5` on the `glassEffect` line (0 is no glass, 1 is full frost)
 - rows shown at once: `shown`
 - slack around the buttons before clicks pass through: the `insetBy` in the mouse timer
 - position: the `resized` closure pins the card to the top-right of the screen that is active at launch
+- app icon: `swift Icon.swift AppIcon.icns` redraws it from the menu bar glyph
 
 ## Check
 
@@ -139,7 +140,7 @@ brew services stop handraise
 brew uninstall handraise
 brew untap gabriel-beer/handraise
 claude mcp remove --scope user handraise
-rm -rf ~/.handraise
+rm -rf ~/Applications/Handraise.app ~/.handraise
 ```
 
 Source install:
@@ -148,7 +149,7 @@ Source install:
 launchctl bootout gui/$(id -u) ~/Library/LaunchAgents/com.handraise.overlay.plist
 rm ~/Library/LaunchAgents/com.handraise.overlay.plist
 claude mcp remove --scope user handraise
-rm -rf ~/.handraise
+rm -rf ~/Applications/Handraise.app ~/.handraise
 ```
 
 ## License
