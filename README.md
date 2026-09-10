@@ -6,7 +6,7 @@ type an answer, and the agent gets everything back in its session.
 
 - One Swift file for the overlay, one Python file for the MCP server, no framework, no database.
 - Tasks are plain JSON files in `~/.handraise/tasks/`, so any number of agents can write at once.
-- Clicks pass through the card to whatever is behind it, except on the button column.
+- Clicks pass through the card to whatever is behind it, except on the buttons themselves.
 - The overlay hides itself when there is nothing to do.
 
 ## Requirements
@@ -76,8 +76,8 @@ server tells the agent to block in `wait_for_user` right after adding its tasks.
 ## What you do
 
 - **Circle**: finishes a plain task. On a question it opens a text field; Enter saves the answer, Escape closes the field.
-- **Paper plane**: same, but delivered to the agent right away instead of waiting for the rest. It appears on hover for plain tasks and next to the field for questions.
-- **Cross** (on hover): drops a task you won't do, without answering.
+- **Paper plane**: same, but delivered to the agent right away instead of waiting for the rest. Hover the circle to reveal it on a plain task; on a question it sits next to the field.
+- **Cross**: drops a task you won't do, without answering. Revealed by hovering the circle too.
 - Only four tasks show at a time, most urgent first, with a `+N more` line for the rest.
 - When every task of one agent is done, the card shows *All done* until the agent's next `wait_for_user` collects the results. An agent that never calls it never hears back, so the cross lets you drop them.
 - If that agent's session is gone, the card says the answers will be delivered as soon as you restart the agent and puts `claude --resume <id>` behind the copy button, with a cross to drop the answers instead. The server rings the resumed agent as soon as it connects (see *How answers get back* above).
@@ -107,7 +107,7 @@ All in `Overlay.swift`, then rerun `./install.sh`:
 
 - glass strength: the `0.5` on the `glassEffect` line (0 is no glass, 1 is full frost)
 - rows shown at once: `shown`
-- width of the click-sensitive column: `hotWidth`
+- slack around the buttons before clicks pass through: the `insetBy` in the mouse timer
 - position: the `resized` closure pins the card to the top-right of the screen that is active at launch
 
 ## Check

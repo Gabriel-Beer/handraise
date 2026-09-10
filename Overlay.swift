@@ -31,6 +31,7 @@ final class Store: ObservableObject {
     @Published var tasks: [Task] = []            // open ones, plus done ones the agent hasn't collected yet
     @Published var alive: [String: Bool] = [:]   // session id -> its MCP server process still runs
     @Published var armed = false                 // mouse is over a clickable part, so the panel takes events
+    var hot: [String: CGRect] = [:]              // frames (SwiftUI global) of what takes clicks; the timer reads it
     @Published var editing: String?              // task id whose answer field is open
     var sessions: [String: Session] = [:]
     private var watcher: DispatchSourceFileSystemObject?
@@ -91,6 +92,14 @@ final class Store: ObservableObject {
     }
 }
 
+extension View {
+    /// Registers this view as click-sensitive: the panel takes mouse events over these frames and lets everything else through.
+    func hot(_ id: String) -> some View {
+        onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { store.hot[id] = $0 }
+            .onDisappear { store.hot[id] = nil }
+    }
+}
+
 struct IconButton: View {
     let icon: String, hot: String, armed: Bool, action: () -> Void
     @State private var hover = false
@@ -132,15 +141,19 @@ struct Row: View {
                 Badge(p: task.priority)
                 Text(task.title).font(.body).lineLimit(3)
                 Spacer(minLength: 0)
-                if hover && store.armed {  // drop a task you won't do, without answering
-                    IconButton(icon: "xmark.circle", hot: "xmark.circle.fill", armed: store.armed) { store.drop(task) }
+                HStack(spacing: 10) {  // only the circle is there until you hover it, so clicks pass through where the rest would be
+                    if hover && store.armed {  // drop a task you won't do, without answering
+                        IconButton(icon: "xmark.circle", hot: "xmark.circle.fill", armed: store.armed) { store.drop(task) }
+                    }
+                    if editing || (hover && store.armed && !task.ask) {  // send-now shows up only when it makes sense
+                        IconButton(icon: "paperplane", hot: "paperplane.fill", armed: store.armed) { submit(now: true) }
+                    }
+                    IconButton(icon: "circle", hot: "checkmark.circle.fill", armed: store.armed) { tap() }
                 }
-                if editing || (hover && store.armed && !task.ask) {  // send-now shows up only when it makes sense
-                    IconButton(icon: "paperplane", hot: "paperplane.fill", armed: store.armed) { submit(now: true) }
-                }
-                IconButton(icon: "circle", hot: "checkmark.circle.fill", armed: store.armed) { tap() }
+                .onHover { hover = $0 }
+                .onChange(of: store.armed) { if !$1 { hover = false } }  // the exit event is lost once the panel lets clicks through
+                .hot(task.id)
             }
-            .onHover { hover = $0 }
             if editing {
                 TextField("Answer…", text: $text)
                     .textFieldStyle(.plain)
@@ -213,8 +226,10 @@ struct OverlayView: View {
                             HStack(spacing: 8) {
                                 Text("Will be delivered as soon as you restart the agent").font(.caption).opacity(0.7)
                                 Spacer(minLength: 0)
-                                CopyButton(text: cmd).help("Copy the resume command")
-                                IconButton(icon: "xmark.circle", hot: "xmark.circle.fill", armed: store.armed) { store.discard(session: sid) }
+                                HStack(spacing: 8) {
+                                    CopyButton(text: cmd).help("Copy the resume command")
+                                    IconButton(icon: "xmark.circle", hot: "xmark.circle.fill", armed: store.armed) { store.discard(session: sid) }
+                                }.hot("offline-\(sid)")
                             }
                         } else if hasDone && !hasOpen {
                             HStack(spacing: 8) {
@@ -222,6 +237,7 @@ struct OverlayView: View {
                                     .font(.caption).opacity(0.6)
                                 Spacer(minLength: 0)
                                 IconButton(icon: "xmark.circle", hot: "xmark.circle.fill", armed: store.armed) { store.discard(session: sid) }
+                                    .hot("done-\(sid)")
                             }
                         }
                     }
@@ -276,12 +292,13 @@ func dropKey() {
 }
 let visibility = store.$tasks.sink { updateVisibility(empty: $0.isEmpty) }
 
-// Clicks pass through to whatever is behind, except on the button column, or anywhere while a question needs typing.
-let hotWidth = 110.0
+// Clicks pass through to whatever is behind, except over the registered buttons (with slack so the pointer can
+// slide from the circle to what it revealed), or anywhere while a question needs typing.
 Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { _ in
     let m = NSEvent.mouseLocation, f = panel.frame
-    let typing = store.editing != nil
-    let armed = f.contains(m) && (typing || m.x >= f.maxX - hotWidth)
+    let zones = store.editing != nil ? [f] : store.hot.values.map {
+        CGRect(x: f.minX + $0.minX, y: f.maxY - $0.maxY, width: $0.width, height: $0.height).insetBy(dx: -8, dy: -6) }
+    let armed = f.contains(m) && zones.contains { $0.contains(m) }
     if panel.ignoresMouseEvents == armed { panel.ignoresMouseEvents = !armed; store.armed = armed }
 }
 Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { _ in store.refreshSessions() }
