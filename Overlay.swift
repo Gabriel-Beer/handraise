@@ -80,6 +80,10 @@ final class Store: ObservableObject {
         if let data = try? JSONEncoder().encode(t) { atomicWrite(data, to: tasksDir.appendingPathComponent(t.id)) }
     }
 
+    func drop(_ t: Task) {
+        try? FileManager.default.removeItem(at: tasksDir.appendingPathComponent(t.id))
+    }
+
     func discard(session sid: String) {
         for t in tasks where t.session == sid && t.done {
             try? FileManager.default.removeItem(at: tasksDir.appendingPathComponent(t.id))
@@ -128,6 +132,9 @@ struct Row: View {
                 Badge(p: task.priority)
                 Text(task.title).font(.body).lineLimit(3)
                 Spacer(minLength: 0)
+                if hover && store.armed {  // drop a task you won't do, without answering
+                    IconButton(icon: "xmark.circle", hot: "xmark.circle.fill", armed: store.armed) { store.drop(task) }
+                }
                 if editing || (hover && store.armed && !task.ask) {  // send-now shows up only when it makes sense
                     IconButton(icon: "paperplane", hot: "paperplane.fill", armed: store.armed) { submit(now: true) }
                 }
@@ -270,7 +277,7 @@ func dropKey() {
 let visibility = store.$tasks.sink { updateVisibility(empty: $0.isEmpty) }
 
 // Clicks pass through to whatever is behind, except on the button column, or anywhere while a question needs typing.
-let hotWidth = 84.0
+let hotWidth = 110.0
 Timer.scheduledTimer(withTimeInterval: 0.05, repeats: true) { _ in
     let m = NSEvent.mouseLocation, f = panel.frame
     let typing = store.editing != nil
