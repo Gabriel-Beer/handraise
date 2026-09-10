@@ -3,46 +3,36 @@
 # dependencies = ["mcp"]
 # ///
 """MCP server: agents put tasks and questions on the screen overlay, then get the human's answers back.
-Delivery: `wait_for_user` blocks until a batch is ready. If Claude was started with
-`--dangerously-load-development-channels server:handraise`, the server also rings the session (channel notification) the moment a batch
-is ready, so the agent does not need to block; it then calls wait_for_user to collect and acknowledge.
+Delivery: the moment a batch is ready the server posts a message into the Claude Code session that
+spawned it, over the session's inbox socket (cross-session messaging, on by default), and the agent
+calls wait_for_user to collect and acknowledge. wait_for_user also blocks when called early.
 Files under ~/.handraise:
   tasks/<prio>-<ns>.json  {title, session, ask, done, answer, send_now}  the overlay flips done/answer/send_now
-  sessions/<sid>.json     {pid, cwd, name}                                the overlay checks pid to see if we're alive
+  sessions/<sid>.json     {pid, cwd, name, resume}                       the overlay checks pid to see if we're alive
 """
 import asyncio
 import json
 import os
+import socket
 import time
 from pathlib import Path
 
 import anyio
-from mcp.server.connection import Connection
 from mcp.server.mcpserver import MCPServer
 from mcp.server.stdio import stdio_server
 
 ROOT = Path.home() / ".handraise"
 TASKS, SESSIONS = ROOT / "tasks", ROOT / "sessions"
 SID = os.environ.get("CLAUDE_CODE_SESSION_ID") or str(os.getppid())
+INBOX, TOKEN = os.environ.get("CLAUDE_CODE_MESSAGING_SOCKET"), os.environ.get("CLAUDE_CODE_MESSAGING_TOKEN", "")
 RESUME = None
-CONN: Connection | None = None  # the stdio connection, captured so the doorbell can notify outside a request
-WAITING = 0                     # wait_for_user calls in progress; the doorbell stays quiet while one is pending
-mcp = MCPServer("handraise", instructions=(
-    "handraise shows your tasks and questions to the user on a screen overlay. When a batch is ready you receive a "
-    "<channel source=\"handraise\"> event listing the finished tasks and answers; call wait_for_user then, it returns "
-    "immediately with the results and clears them from the screen. Without channels, call wait_for_user right after "
-    "add_task and it blocks until the user is done."))
-
-_for_loop = Connection.for_loop
-
-
-def _capture(*a, **k):
-    global CONN
-    CONN = _for_loop(*a, **k)
-    return CONN
-
-
-Connection.for_loop = staticmethod(_capture)
+WAITING = 0  # wait_for_user calls in progress; the doorbell stays quiet while one is pending
+mcp = MCPServer("handraise", instructions="handraise shows your tasks and questions to the user on a screen overlay. " + (
+    "When a batch is ready you receive a message from handraise listing the finished tasks and answers; call "
+    "wait_for_user then, it returns immediately with the results and clears them from the screen. You do not need "
+    "to block for them." if INBOX else
+    "This session has no inbox to notify you, so call wait_for_user right after adding your tasks; it blocks until "
+    "the user is done."))
 
 
 def resume_id() -> str:
@@ -143,29 +133,41 @@ async def wait_for_user(timeout_seconds: int = 1500) -> dict:
         WAITING -= 1
 
 
+def post(content: str):
+    """Push a message into the session that spawned us, over its inbox socket (Claude Code cross-session
+    messaging). Claude Code sees we are its own child, so it is delivered without an approval dialog."""
+    with socket.socket(socket.AF_UNIX) as s:
+        s.settimeout(5)
+        s.connect(INBOX)
+        s.sendall("".join(json.dumps(m) + "\n" for m in (
+            {"type": "auth", "token": TOKEN},
+            {"type": "user", "from": "handraise", "message": {"role": "user", "content": content}})).encode())
+
+
 async def doorbell():
     """Ring the session once per ready batch, unless an agent is already blocked in wait_for_user."""
     rung = None
-    while True:
+    while INBOX:
         await asyncio.sleep(0.5)
         done, pending, ready = status()
         key = tuple(f.name for f, _ in done)
-        if not (ready and done) or WAITING or key == rung or CONN is None or not CONN.initialized.is_set():
+        if not (ready and done) or WAITING or key == rung:
             continue
         lines = [f"- {t['title']}" + (f" -> {t['answer']}" if t.get("answer") else "") for _, t in done]
         head = "handraise: the user finished all your tasks." if not pending else "handraise: the user sent one answer early."
-        content = "\n".join([head, *lines, "Call wait_for_user to collect and acknowledge them; that clears them from the overlay."])
-        await CONN.outbound.notify("notifications/claude/channel", {"content": content, "meta": {"all_done": str(not pending).lower()}})
+        try:
+            post("\n".join([head, *lines, "Call wait_for_user to collect and acknowledge them; that clears them from the overlay."]))
+        except OSError:
+            continue  # inbox not up yet or the session is going away; try again next tick
         rung = key
 
 
 async def main():
     low = mcp._lowlevel_server
-    init = low.create_initialization_options(experimental_capabilities={"claude/channel": {}})
     async with stdio_server() as (r, w):
         bell = asyncio.create_task(doorbell())
         try:
-            await low.run(r, w, init)
+            await low.run(r, w, low.create_initialization_options())
         finally:
             bell.cancel()
 

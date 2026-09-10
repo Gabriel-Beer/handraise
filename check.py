@@ -1,8 +1,10 @@
-"""python3 check.py : drives the real server over raw stdio JSON-RPC (so channel notifications are visible)
-and plays the overlay by editing the task files."""
+"""python3 check.py : drives the real server over raw stdio JSON-RPC, plays the overlay by editing the task
+files, and stands in for the Claude Code inbox socket to see what the server posts."""
 import json
 import os
+import socket
 import subprocess
+import tempfile
 import threading
 import time
 from pathlib import Path
@@ -10,6 +12,18 @@ from pathlib import Path
 SID = f"check-{os.getpid()}"
 ROOT = Path.home() / ".handraise"
 TASKS = ROOT / "tasks"
+INBOX = Path(tempfile.mkdtemp()) / "inbox.sock"
+posts = []  # every JSON line the server posted into the inbox
+
+
+def listen():
+    srv = socket.socket(socket.AF_UNIX)
+    srv.bind(str(INBOX))
+    srv.listen()
+    while True:
+        c, _ = srv.accept()
+        with c, c.makefile() as f:
+            posts.extend(json.loads(l) for l in f)
 
 
 def mark(name, answer=None, send_now=False):  # what the overlay does on the circle / paper plane
@@ -17,8 +31,10 @@ def mark(name, answer=None, send_now=False):  # what the overlay does on the cir
     f.write_text(json.dumps({**json.loads(f.read_text()), "done": True, "answer": answer, "send_now": send_now}))
 
 
+threading.Thread(target=listen, daemon=True).start()
 p = subprocess.Popen(["uv", "run", "server.py"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
-                     env={**os.environ, "CLAUDE_CODE_SESSION_ID": SID}, text=True)
+                     env={**os.environ, "CLAUDE_CODE_SESSION_ID": SID, "CLAUDE_CODE_MESSAGING_SOCKET": str(INBOX),
+                          "CLAUDE_CODE_MESSAGING_TOKEN": "tok"}, text=True)
 lines = []
 threading.Thread(target=lambda: [lines.append(json.loads(l)) for l in p.stdout], daemon=True).start()
 seq = 0
@@ -44,7 +60,7 @@ def call(name, **args):
 
 
 def rings():
-    return [m["params"] for m in lines if m.get("method") == "notifications/claude/channel"]
+    return [m["message"]["content"] for m in posts if m.get("type") == "user"]
 
 
 try:
@@ -54,7 +70,6 @@ try:
     p.stdin.flush()
     while not any(m.get("id") == seq for m in lines):
         time.sleep(0.05)
-    assert "claude/channel" in lines[-1]["result"]["capabilities"]["experimental"]
     send("notifications/initialized")
 
     plain, *_ = call("add_task", title="  restart the router ", priority=1)
@@ -68,18 +83,19 @@ try:
 
     r = json.loads(call("wait_for_user", timeout_seconds=1)[0])
     assert r["timed_out"] and {"restart the router", "what does the LED show?"} <= set(r["pending"]), r
-    assert not rings()
+    assert not posts
 
     mark(q, answer="green", send_now=True)
     time.sleep(1.5)  # the doorbell polls every 0.5s
-    assert rings() and "green" in rings()[-1]["content"] and rings()[-1]["meta"]["all_done"] == "false", rings()
+    assert posts[0] == {"type": "auth", "token": "tok"}, posts
+    assert rings() and "green" in rings()[-1] and "early" in rings()[-1], posts
     r = json.loads(call("wait_for_user", timeout_seconds=5)[0])
     assert r["results"] == [{"title": "what does the LED show?", "answer": "green"}] and not r["all_done"], r
     assert not (TASKS / q).exists()
 
     mark(plain), mark(lo)
     time.sleep(1.5)
-    assert len(rings()) == 2 and rings()[-1]["meta"]["all_done"] == "true", rings()
+    assert len(rings()) == 2 and "finished all" in rings()[-1], posts
     r = json.loads(call("wait_for_user", timeout_seconds=5)[0])
     assert r["all_done"] and {x["title"] for x in r["results"]} == {"restart the router", "later"}, r
     assert not any(t["id"] in (plain, lo) for t in call("list_tasks")[1])
@@ -89,3 +105,5 @@ try:
 finally:
     p.terminate()
     (ROOT / "sessions" / f"{SID}.json").unlink(missing_ok=True)
+    INBOX.unlink(missing_ok=True)
+    INBOX.parent.rmdir()

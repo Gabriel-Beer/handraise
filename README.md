@@ -58,30 +58,20 @@ wait_for_user()
 `wait_for_user` returns early with `timed_out: true` after 25 minutes so it stays under
 Claude Code's idle limit for stdio tools; the agent just calls it again.
 
-### Push instead of blocking
+### How answers get back
 
-Claude Code can let an MCP server push messages into a session (*channels*, a research
-preview). During the preview only Anthropic's own channel plugins are on the allowlist, so a
-local server is registered with the development flag, which asks for a confirmation at
-startup:
+Every Claude Code session has an inbox socket for messages from your other sessions
+([cross-session messaging](https://code.claude.com/docs/en/cross-session-messaging), on by
+default since v2.1.224), and exports its path to the processes it spawns. The server posts
+into it the moment a batch is ready, so the agent does not block: it gets a message listing
+the finished tasks and answers and calls `wait_for_user` once to collect and acknowledge
+them. Claude Code verifies the post comes from the session's own child process, so it is
+delivered without an approval dialog, also in bypass-permissions mode. Nothing to enable,
+nothing leaves your machine.
 
-```sh
-claude --dangerously-load-development-channels server:handraise
-```
-
-Now the agent does not need to block: the moment a batch is ready, the server rings the
-session with the answers, and the agent calls `wait_for_user` once to collect and
-acknowledge them. The same thing happens right after
-`claude --dangerously-load-development-channels server:handraise --resume <id>`, so a dead
-agent picks up where it left off. An alias keeps it out of the way:
-
-```sh
-alias claude='claude --dangerously-load-development-channels server:handraise'
-```
-
-Without the flag nothing changes: Claude Code drops the notification silently and agents
-rely on `wait_for_user`. Team and Enterprise organizations must enable channels first
-(`channelsEnabled` in managed settings).
+The same thing happens right after `claude --resume <id>`, so a dead agent picks up where
+it left off. Without an inbox (a `claude -p --bare` session, an older Claude Code) the
+server tells the agent to block in `wait_for_user` right after adding its tasks.
 
 ## What you do
 
@@ -90,7 +80,7 @@ rely on `wait_for_user`. Team and Enterprise organizations must enable channels 
 - **Cross** (on hover): drops a task you won't do, without answering.
 - Only four tasks show at a time, most urgent first, with a `+N more` line for the rest.
 - When every task of one agent is done, the card shows *All done* until the agent's next `wait_for_user` collects the results. An agent that never calls it never hears back, so the cross lets you drop them.
-- If that agent's session is gone, the card says the answers will be delivered as soon as you restart the agent and puts `claude --dangerously-load-development-channels server:handraise --resume <id>` behind the copy button. The server rings the resumed agent as soon as it connects (see *Push* below). A copy button and a cross to drop the answers sit next to it.
+- If that agent's session is gone, the card says the answers will be delivered as soon as you restart the agent and puts `claude --resume <id>` behind the copy button, with a cross to drop the answers instead. The server rings the resumed agent as soon as it connects (see *How answers get back* above).
 
 Priority is shown as contrast rather than color: P1 is a solid disc, P4 and beyond are barely there.
 
@@ -126,7 +116,7 @@ All in `Overlay.swift`, then rerun `./install.sh`:
 python3 check.py
 ```
 
-Drives the real server over raw stdio JSON-RPC, plays the overlay by editing the task files, and checks the channel notification.
+Drives the real server over raw stdio JSON-RPC, plays the overlay by editing the task files, and stands in for the session inbox to check what the server posts.
 
 ## Uninstall
 

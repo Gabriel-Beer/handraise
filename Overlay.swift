@@ -208,8 +208,8 @@ struct OverlayView: View {
                     VStack(alignment: .leading, spacing: 4) {  // header and its status read as one block
                         Text("\(store.sessions[sid]?.name ?? "agent") · \(sid.prefix(4))").font(.caption).opacity(0.6)
                         if hasDone && !alive {
-                            // The copy button carries the full command; showing it would eat the card.
-                            let cmd = "claude --dangerously-load-development-channels server:handraise --resume \(store.sessions[sid]?.resume ?? sid)"
+                            // The copy button carries the command; showing it would eat the card.
+                            let cmd = "claude --resume \(store.sessions[sid]?.resume ?? sid)"
                             HStack(spacing: 8) {
                                 Text("Will be delivered as soon as you restart the agent").font(.caption).opacity(0.7)
                                 Spacer(minLength: 0)
@@ -218,7 +218,7 @@ struct OverlayView: View {
                             }
                         } else if hasDone && !hasOpen {
                             HStack(spacing: 8) {
-                                Label("All done, waiting for the agent to call wait_for_user", systemImage: "checkmark")
+                                Label("All done, waiting for the agent to collect", systemImage: "checkmark")
                                     .font(.caption).opacity(0.6)
                                 Spacer(minLength: 0)
                                 IconButton(icon: "xmark.circle", hot: "xmark.circle.fill", armed: store.armed) { store.discard(session: sid) }
