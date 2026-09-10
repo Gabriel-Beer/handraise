@@ -17,9 +17,10 @@ type an answer, and the agent gets everything back in its session.
 
 ## Install
 
-With Homebrew (the repo is its own tap):
+With Homebrew (the repo is its own tap; Homebrew 6 asks you to trust a third-party tap first):
 
 ```sh
+brew trust --tap https://github.com/Gabriel-Beer/handraise
 brew tap gabriel-beer/handraise https://github.com/Gabriel-Beer/handraise
 brew install handraise
 brew services start handraise
@@ -136,6 +137,7 @@ Homebrew:
 ```sh
 brew services stop handraise
 brew uninstall handraise
+brew untap gabriel-beer/handraise
 claude mcp remove --scope user handraise
 rm -rf ~/.handraise
 ```
