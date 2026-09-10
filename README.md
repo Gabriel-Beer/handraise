@@ -90,6 +90,7 @@ server tells the agent to block in `wait_for_user` right after adding its tasks.
 - **Paper plane**: same, but delivered to the agent right away instead of waiting for the rest. Hover the circle to reveal it on a plain task; on a question it sits next to the field.
 - **Cross**: drops a task you won't do, without answering. Revealed by hovering the circle too.
 - Only four tasks show at a time, most urgent first, with a `+N more` line for the rest.
+- **Chevron** next to an agent's name: folds that agent's tasks away, leaving the name and how many are waiting; click again to unfold.
 - When every task of one agent is done, the card shows *All done* until the agent's next `wait_for_user` collects the results. An agent that never calls it never hears back, so the cross lets you drop them.
 - If that agent's session is gone, the card says the answers will be delivered as soon as you restart the agent and puts `claude --resume <id>` behind the copy button, with a cross to drop the answers instead. The server rings the resumed agent as soon as it connects (see *How answers get back* above).
 
@@ -152,4 +153,4 @@ rm -rf ~/.handraise
 
 ## License
 
-MIT
+GPL-3.0-or-later. Copyright (C) 2026 Gabriel Beer.
