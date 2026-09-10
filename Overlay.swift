@@ -33,6 +33,7 @@ final class Store: ObservableObject {
     @Published var armed = false                 // mouse is over a clickable part, so the panel takes events
     var hot: [String: CGRect] = [:]              // frames (SwiftUI global) of what takes clicks; the timer reads it
     @Published var editing: String?              // task id whose answer field is open
+    @Published var folded: Set<String> = []       // sessions whose tasks are folded away under their name
     var sessions: [String: Session] = [:]
     private var watcher: DispatchSourceFileSystemObject?
 
@@ -137,9 +138,9 @@ struct Row: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 10) {
+            HStack(alignment: .top, spacing: 10) {  // top-aligned so the circle stays under the pointer when the title unfolds
                 Badge(p: task.priority)
-                Text(task.title).font(.body).lineLimit(3)
+                Text(task.title).font(.body).lineLimit(editing || (hover && store.armed) ? nil : 3)  // hover the circle to read a long one
                 Spacer(minLength: 0)
                 HStack(spacing: 10) {  // only the circle is there until you hover it, so clicks pass through where the rest would be
                     if hover && store.armed {  // drop a task you won't do, without answering
@@ -155,7 +156,8 @@ struct Row: View {
                 .hot(task.id)
             }
             if editing {
-                TextField("Answer…", text: $text)
+                TextField("Answer…", text: $text, axis: .vertical)
+                    .lineLimit(1...8)
                     .textFieldStyle(.plain)
                     .focused($focused)
                     .padding(.horizontal, 8).padding(.vertical, 5)
@@ -163,6 +165,8 @@ struct Row: View {
                     .padding(.leading, 34)
                     .onAppear { focused = true }
                     .onSubmit { submit(now: false) }
+                    .onKeyPress(.return, phases: .down) { _ in submit(now: false); return .handled }  // a vertical field would insert a newline
+                    .onChange(of: text) { if $1.hasSuffix("\n") { submit(now: false) } }  // in case the key press slipped through
                     .onExitCommand { close() }
             }
         }
@@ -209,17 +213,23 @@ struct OverlayView: View {
 
     var body: some View {
         let open = store.tasks.filter { !$0.done }
-        let visible = Array(open.prefix(shown))
+        let visible = Array(open.filter { !store.folded.contains($0.session) }.prefix(shown))
         let sids = store.tasks.map(\.session).reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
+        let hidden = open.count - visible.count - open.filter { store.folded.contains($0.session) }.count
         VStack(alignment: .leading, spacing: 10) {
             ForEach(sids, id: \.self) { sid in
                 let mine = visible.filter { $0.session == sid }
-                let hasOpen = open.contains { $0.session == sid }
+                let count = open.filter { $0.session == sid }.count
                 let hasDone = store.tasks.contains { $0.session == sid && $0.done }
                 let alive = store.alive[sid] ?? false
-                if !mine.isEmpty || hasDone {
+                let folded = store.folded.contains(sid)
+                if !mine.isEmpty || hasDone || (folded && count > 0) {
                     VStack(alignment: .leading, spacing: 4) {  // header and its status read as one block
-                        Text("\(store.sessions[sid]?.name ?? "agent") · \(sid.prefix(4))").font(.caption).opacity(0.6)
+                        HStack(spacing: 6) {
+                            chevron(sid).hot("fold-\(sid)")
+                            Text("\(store.sessions[sid]?.name ?? "agent") · \(sid.prefix(4))" + (folded ? " · \(count)" : ""))
+                                .font(.caption).opacity(0.6)
+                        }
                         if hasDone && !alive {
                             // The copy button carries the command; showing it would eat the card.
                             let cmd = "claude --resume \(store.sessions[sid]?.resume ?? sid)"
@@ -231,7 +241,7 @@ struct OverlayView: View {
                                     IconButton(icon: "xmark.circle", hot: "xmark.circle.fill", armed: store.armed) { store.discard(session: sid) }
                                 }.hot("offline-\(sid)")
                             }
-                        } else if hasDone && !hasOpen {
+                        } else if hasDone && count == 0 {
                             HStack(spacing: 8) {
                                 Label("All done, waiting for the agent to collect", systemImage: "checkmark")
                                     .font(.caption).opacity(0.6)
@@ -241,11 +251,11 @@ struct OverlayView: View {
                             }
                         }
                     }
-                    ForEach(mine) { Row(task: $0, store: store) }
+                    if !folded { ForEach(mine) { Row(task: $0, store: store) } }
                 }
             }
-            if open.count > shown {
-                Text("+\(open.count - shown) more").font(.caption).opacity(0.6)
+            if hidden > 0 {
+                Text("+\(hidden) more").font(.caption).opacity(0.6)
             }
         }
         .foregroundStyle(.white)
@@ -255,6 +265,20 @@ struct OverlayView: View {
         .fixedSize(horizontal: false, vertical: true)
         .background(Color.clear.glassEffect(.regular, in: .rect(cornerRadius: 16)).opacity(0.5))  // 0 = no glass, 1 = full frost
         .onGeometryChange(for: CGSize.self) { $0.size } action: { resized($0) }
+    }
+
+    /// The disclosure next to an agent's name: points down when its tasks show, right when they are folded away.
+    func chevron(_ sid: String) -> some View {
+        let folded = store.folded.contains(sid)
+        return Button {
+            if store.editing != nil { store.editing = nil; dropKey() }
+            if folded { store.folded.remove(sid) } else { store.folded.insert(sid) }
+        } label: {
+            Image(systemName: "chevron.right").font(.caption2.bold()).opacity(0.7)
+                .rotationEffect(.degrees(folded ? 0 : 90))
+                .animation(.easeInOut(duration: 0.2), value: folded)
+        }
+        .buttonStyle(.plain)
     }
 }
 
