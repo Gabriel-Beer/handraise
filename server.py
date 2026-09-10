@@ -4,7 +4,7 @@
 # ///
 """MCP server: agents put tasks and questions on the screen overlay, then get the human's answers back.
 Delivery: `wait_for_user` blocks until a batch is ready. If Claude was started with
-`--channels server:handraise`, the server also rings the session (channel notification) the moment a batch
+`--dangerously-load-development-channels server:handraise`, the server also rings the session (channel notification) the moment a batch
 is ready, so the agent does not need to block; it then calls wait_for_user to collect and acknowledge.
 Files under ~/.handraise:
   tasks/<prio>-<ns>.json  {title, session, ask, done, answer, send_now}  the overlay flips done/answer/send_now
@@ -27,7 +27,11 @@ SID = os.environ.get("CLAUDE_CODE_SESSION_ID") or str(os.getppid())
 RESUME = None
 CONN: Connection | None = None  # the stdio connection, captured so the doorbell can notify outside a request
 WAITING = 0                     # wait_for_user calls in progress; the doorbell stays quiet while one is pending
-mcp = MCPServer("handraise")
+mcp = MCPServer("handraise", instructions=(
+    "handraise shows your tasks and questions to the user on a screen overlay. When a batch is ready you receive a "
+    "<channel source=\"handraise\"> event listing the finished tasks and answers; call wait_for_user then, it returns "
+    "immediately with the results and clears them from the screen. Without channels, call wait_for_user right after "
+    "add_task and it blocks until the user is done."))
 
 _for_loop = Connection.for_loop
 

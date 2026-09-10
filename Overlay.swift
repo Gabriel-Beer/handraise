@@ -209,7 +209,7 @@ struct OverlayView: View {
                         Text("\(store.sessions[sid]?.name ?? "agent") · \(sid.prefix(4))").font(.caption).opacity(0.6)
                         if hasDone && !alive {
                             // The copy button carries the full command; showing it would eat the card.
-                            let cmd = "claude --channels server:handraise --resume \(store.sessions[sid]?.resume ?? sid)"
+                            let cmd = "claude --dangerously-load-development-channels server:handraise --resume \(store.sessions[sid]?.resume ?? sid)"
                             HStack(spacing: 8) {
                                 Text("Will be delivered as soon as you restart the agent").font(.caption).opacity(0.7)
                                 Spacer(minLength: 0)
