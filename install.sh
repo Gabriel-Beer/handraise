@@ -12,6 +12,8 @@ codesign --force --sign - Handraise.app 2>/dev/null || true  # ad hoc, so macOS 
 APP="$HOME/Applications/Handraise.app"
 mkdir -p "$HOME/Applications"
 rm -rf "$APP" && cp -R Handraise.app "$APP"
+# A freshly copied bundle shows a generic icon until LaunchServices registers it.
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f "$APP" && touch "$APP"
 
 PLIST=~/Library/LaunchAgents/com.handraise.overlay.plist
 cat > "$PLIST" <<PL
