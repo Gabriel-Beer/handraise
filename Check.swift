@@ -43,6 +43,16 @@ Thread.detachNewThread {
     }
 }
 
+// Session files of a dead server: the orphan gets pruned at startup, the one a task still points at stays for resume.
+let gone = Process()
+gone.executableURL = URL(fileURLWithPath: "/usr/bin/true")
+try! gone.run()
+gone.waitUntilExit()
+let orphan = root.appendingPathComponent("sessions/\(sid)-orphan.json"), kept = root.appendingPathComponent("sessions/\(sid)-kept.json")
+let keptTask = tasks.appendingPathComponent("999-\(sid)-kept.json")
+for u in [orphan, kept] { try! json(["pid": Int(gone.processIdentifier), "cwd": "/", "name": "gone"]).write(to: u) }
+try! json(["title": "left by a dead agent", "session": "\(sid)-kept", "ask": false, "done": true, "send_now": false]).write(to: keptTask)
+
 // The server
 let p = Process()
 p.executableURL = URL(fileURLWithPath: "./handraise-server")
@@ -70,7 +80,7 @@ Thread.detachNewThread {
     }
 }
 
-func cleanup() { p.terminate(); try? fm.removeItem(at: session); unlink(inbox) }
+func cleanup() { p.terminate(); for u in [session, orphan, kept, keptTask] { try? fm.removeItem(at: u) }; unlink(inbox) }
 func fail(_ what: String, line: Int = #line) -> Never { print("FAIL line \(line): \(what)"); cleanup(); exit(1) }
 func check(_ ok: Bool, _ what: @autoclosure () -> String, line: Int = #line) { if !ok { fail(what(), line: line) } }
 
@@ -112,6 +122,7 @@ let hello = request("initialize", ["protocolVersion": "2025-06-18", "capabilitie
                                    "clientInfo": ["name": "check", "version": "0"]])
 check(((hello["result"] as? Dict)?["capabilities"] as? Dict)?["tools"] != nil, "initialize: \(hello)")
 notify("notifications/initialized")
+check(!fm.fileExists(atPath: orphan.path) && fm.fileExists(atPath: kept.path), "prune: orphan gone, kept stays")
 
 let plain = call("add_task", ["title": "  restart the router ", "priority": 1]).text
 let sess = parse((try? Data(contentsOf: session)) ?? Data()) ?? [:]
@@ -150,5 +161,25 @@ let left = (callJSON("list_tasks") as? [Dict] ?? []).compactMap { $0["id"] as? S
 check(!left.contains(plain) && !left.contains(lo), "not cleared: \(left)")
 
 check(call("remove_task", ["id": "../x"]).error, "path traversal accepted")
+
+// The doorbell polls forever; each tick used to leave an NSMutableArray in a pool that never drained (~17 MB/hour).
+func arrays() -> Int {
+    let h = Process(), o = Pipe()
+    h.executableURL = URL(fileURLWithPath: "/usr/bin/heap")
+    h.arguments = [String(p.processIdentifier)]
+    h.standardOutput = o
+    h.standardError = FileHandle.nullDevice
+    try! h.run()
+    let text = String(decoding: o.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+    h.waitUntilExit()
+    for line in text.split(separator: "\n") {
+        let f = line.split(separator: " ").map(String.init)
+        if f.count > 4 && f[3] == "NSMutableArray" && f[4] == "ObjC" { return Int(f[0]) ?? 0 }
+    }
+    return 0
+}
+let before = arrays()
+Thread.sleep(forTimeInterval: 3)
+check(arrays() - before < 3, "doorbell leaks: \(before) -> \(arrays()) NSMutableArrays in 3s")
 print("ok")
 cleanup()

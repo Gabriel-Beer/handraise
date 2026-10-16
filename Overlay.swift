@@ -1,4 +1,5 @@
 import AppKit
+import Carbon.HIToolbox
 import Combine
 import SwiftUI
 
@@ -149,6 +150,11 @@ struct Row: View {
                 Text(task.title).font(.body).lineLimit(editing || (hover && store.armed) ? nil : 3)  // hover the circle to read a long one
                 Spacer(minLength: 0)
                 HStack(spacing: 10) {  // only the circle is there until you hover it, so clicks pass through where the rest would be
+                    if hover && store.armed, let url = link {  // agents hand over localhost URLs a lot
+                        IconButton(icon: "arrow.up.right.square", hot: "arrow.up.right.square.fill", armed: store.armed) {
+                            NSWorkspace.shared.open(url)
+                        }.help(url.absoluteString)
+                    }
                     if hover && store.armed {  // drop a task you won't do, without answering
                         IconButton(icon: "xmark.circle", hot: "xmark.circle.fill", armed: store.armed) { store.drop(task) }
                     }
@@ -162,7 +168,7 @@ struct Row: View {
                 .hot(task.id)
             }
             if editing {
-                TextField("Answer…", text: $text, axis: .vertical)
+                TextField("Answer, or just Enter for yes", text: $text, axis: .vertical)
                     .lineLimit(1...8)
                     .textFieldStyle(.plain)
                     .focused($focused)
@@ -178,17 +184,21 @@ struct Row: View {
         }
     }
 
+    var link: URL? {  // ponytail: first URL only
+        let d = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
+        return d?.firstMatch(in: task.title, range: NSRange(task.title.startIndex..., in: task.title))?.url
+    }
+
     func tap() {
         if !task.ask { store.finish(task); return }
         if !editing { store.editing = task.id; panel.makeKey(); return }
-        if text.trimmingCharacters(in: .whitespaces).isEmpty { close() } else { submit(now: false) }
+        submit(now: false)
     }
 
     func submit(now: Bool) {
         let a = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        if task.ask && a.isEmpty { return }
         close()
-        store.finish(task, answer: task.ask ? a : nil, sendNow: now)
+        store.finish(task, answer: task.ask ? (a.isEmpty ? "yes" : a) : nil, sendNow: now)  // confirming without typing approves
     }
 
     func close() {
@@ -219,7 +229,8 @@ struct OverlayView: View {
 
     var body: some View {
         let open = store.tasks.filter { !$0.done }
-        let visible = Array(open.filter { !store.folded.contains($0.session) }.prefix(shown))
+        let capped = open.filter { !store.folded.contains($0.session) }.prefix(shown)
+        let visible = Array(capped) + open.filter { $0.id == store.editing && !capped.contains($0) }  // the hotkey reaches past the cap
         let sids = store.tasks.map(\.session).reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }
         let hidden = open.count - visible.count - open.filter { store.folded.contains($0.session) }.count
         VStack(alignment: .leading, spacing: 10) {
@@ -233,7 +244,8 @@ struct OverlayView: View {
                     VStack(alignment: .leading, spacing: 4) {  // header and its status read as one block
                         HStack(spacing: 6) {
                             chevron(sid).hot("fold-\(sid)")
-                            Text("\(store.sessions[sid]?.name ?? "agent") · \(sid.prefix(4))" + (folded ? " · \(count)" : ""))
+                            Text("\(store.sessions[sid]?.name ?? "agent") · \(sid.prefix(4))" + (folded ? " · \(count)" : "")
+                                 + (alive ? "" : " · offline"))
                                 .font(.caption).opacity(0.6)
                         }
                         if hasDone && !alive {
@@ -366,6 +378,10 @@ final class Bar: NSObject {
         let menu = NSMenu()
         toggle.target = self
         menu.addItem(toggle)
+        let answer = NSMenuItem(title: "Answer next question", action: #selector(answer), keyEquivalent: "h")
+        answer.keyEquivalentModifierMask = [.control, .option]  // shown here, fired by the global hotkey
+        answer.target = self
+        menu.addItem(answer)
         menu.addItem(.separator())
         // Glass submenu: variant, hover/press response, tint, then a strength slider. Keys map onto Look.
         for (title, key) in [("Regular", "clear=0"), ("Clear", "clear=1"), ("-", ""), ("Interactive", "interactive"), ("-", ""),
@@ -415,6 +431,7 @@ final class Bar: NSObject {
         }
     }
     @objc func strength(_ s: NSSlider) { store.look.strength = s.doubleValue }
+    @objc func answer() { answerNext() }
     @objc func toggleOverlay() {
         hidden.toggle()
         toggle.title = hidden ? "Show overlay" : "Hide overlay"
@@ -422,4 +439,30 @@ final class Bar: NSObject {
     }
 }
 let bar = Bar()
+bar.item.button?.imagePosition = .imageLeading
+let badge = store.$tasks.sink { ts in  // open tasks next to the icon, so they show even with the overlay hidden
+    let n = ts.filter { !$0.done }.count
+    bar.item.button?.title = n > 0 ? "\(n)" : ""
+}
+
+// Clicking into another app closes the answer field (the draft stays in the row) so the card passes clicks again.
+let resign = NotificationCenter.default.addObserver(forName: NSWindow.didResignKeyNotification, object: panel, queue: .main) { _ in
+    store.editing = nil
+}
+
+/// ⌃⌥H: open the most urgent question for typing; again cycles to the next one. Escape hands the keyboard back.
+func answerNext() {
+    let asks = store.tasks.filter { $0.ask && !$0.done }
+    guard !asks.isEmpty else { NSSound.beep(); return }
+    let i = asks.firstIndex { $0.id == store.editing }.map { ($0 + 1) % asks.count } ?? 0
+    if hidden { bar.toggleOverlay() }
+    store.folded.remove(asks[i].session)
+    store.editing = asks[i].id
+    panel.makeKey()
+}
+var hotKey: EventHotKeyRef?
+var pressed = EventTypeSpec(eventClass: OSType(kEventClassKeyboard), eventKind: UInt32(kEventHotKeyPressed))
+InstallEventHandler(GetApplicationEventTarget(), { _, _, _ in answerNext(); return noErr }, 1, &pressed, nil, nil)
+RegisterEventHotKey(UInt32(kVK_ANSI_H), UInt32(controlKey | optionKey), EventHotKeyID(signature: 0x4852_4149, id: 1),
+                    GetApplicationEventTarget(), 0, &hotKey)
 app.run()

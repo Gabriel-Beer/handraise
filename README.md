@@ -51,7 +51,7 @@ launchctl kickstart gui/$(id -u)/com.handraise.overlay
 
 | Tool | What it does |
 |------|--------------|
-| `add_task(title, priority=5, ask=False)` | Puts a task on screen. `priority` 1 is the most urgent. `ask=True` means you expect a text answer. |
+| `add_task(title, priority=5, ask=False)` | Puts a task on screen. `priority` 1 is the most urgent. `ask=True` means you expect an answer; confirming without typing answers `yes`. |
 | `wait_for_user(timeout_seconds=1500)` | Blocks until you finished every task of this agent, or pressed *send now* on one. Returns the finished tasks with their answers and clears them. |
 | `list_tasks()` | Everything on screen, from every agent. |
 | `remove_task(id)` | Takes a task back. |
@@ -87,7 +87,7 @@ server tells the agent to block in `wait_for_user` right after adding its tasks.
 
 ## What you do
 
-- **Circle**: finishes a plain task. On a question it opens a text field; Enter saves the answer, Escape closes the field.
+- **Circle**: finishes a plain task. On a question it opens a text field; Enter saves the answer, an empty one counts as *yes*, Escape closes the field.
 - **Paper plane**: same, but delivered to the agent right away instead of waiting for the rest. Hover the circle to reveal it on a plain task; on a question it sits next to the field.
 - **Cross**: drops a task you won't do, without answering. Revealed by hovering the circle too.
 - Only four tasks show at a time, most urgent first, with a `+N more` line for the rest.

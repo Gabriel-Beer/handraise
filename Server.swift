@@ -50,14 +50,15 @@ func mine() -> [(URL, Dict)] {
 
 struct Status { let done: [(URL, Dict)], pending: [String], ready: Bool }
 
-/// ready when nothing is pending, or the user pressed send-now on something
-func status() -> Status {
+/// ready when nothing is pending, or the user pressed send-now on something.
+/// The doorbell and wait_for_user poll this forever on threads whose autorelease pool never drains, so drain it here.
+func status() -> Status { autoreleasepool {
     let tasks = mine()
     let done = tasks.filter { $0.1["done"] as? Bool == true }
     let pending = tasks.filter { $0.1["done"] as? Bool != true }.map { $0.1["title"] as? String ?? "" }
     return Status(done: done, pending: pending,
                   ready: tasks.isEmpty || pending.isEmpty || done.contains { $0.1["send_now"] as? Bool == true })
-}
+} }
 
 /// `claude --resume` takes the transcript filename; the env id can be a later rotation that only appears inside
 /// the entries, so fall back to scanning the tail of recently written transcripts.
@@ -85,6 +86,17 @@ func resumeId() -> String {
 
 let resume = resumeId()
 
+/// Session files of servers that are gone and that no task points at anymore; a dead one with tasks stays for resume.
+func prune() {
+    let used = Set(files().compactMap { load($0)?["session"] as? String })
+    for f in (try? fm.contentsOfDirectory(atPath: sessionsDir.path)) ?? [] where f.hasSuffix(".json") && !f.hasPrefix(".") {
+        let u = sessionsDir.appendingPathComponent(f)
+        if !used.contains(String(f.dropLast(5))), let pid = load(u)?["pid"] as? Int, kill(pid_t(pid), 0) != 0, errno == ESRCH {
+            try? fm.removeItem(at: u)
+        }
+    }
+}
+
 func announce() {
     write(sessionsDir.appendingPathComponent(sid + ".json"),
           ["pid": Int(getpid()), "cwd": fm.currentDirectoryPath,
@@ -96,7 +108,8 @@ func announce() {
 let addTask: Dict = [
     "name": "add_task",
     "description": "Show a task on the user's screen overlay. priority 1 = most urgent, bigger = less urgent. "
-        + "ask=true when you need a text answer back (\"check X and tell me what you see\"). "
+        + "ask=true when you need an answer back (\"check X and tell me what you see\", \"ok to deploy?\"). "
+        + "Confirming without typing answers \"yes\", so a yes/no question costs the user one click; anything else they type. "
         + "Afterwards call wait_for_user to get the results.",
     "inputSchema": ["type": "object", "required": ["title"], "properties": [
         "title": ["type": "string"], "priority": ["type": "integer", "default": 5], "ask": ["type": "boolean", "default": false]]]]
@@ -229,6 +242,7 @@ func handle(_ req: Dict) {
 }
 
 for d in [tasksDir, sessionsDir] { try? fm.createDirectory(at: d, withIntermediateDirectories: true) }
+prune()
 announce()
 Thread.detachNewThread(doorbell)
 let inflight = DispatchGroup()
