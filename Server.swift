@@ -134,6 +134,7 @@ func call(_ name: String, _ a: Dict) throws -> Any {
     switch name {
     case "add_task":
         let title = (a["title"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else { throw Fail(description: "title is empty") }
         let p = max(0, min(999, a["priority"] as? Int ?? 5))
         let file = String(format: "%03d-%llu.json", p, UInt64(Date().timeIntervalSince1970 * 1e9))
         write(tasksDir.appendingPathComponent(file), ["title": title, "session": sid, "ask": a["ask"] as? Bool ?? false,
@@ -242,6 +243,7 @@ func handle(_ req: Dict) {
 }
 
 for d in [tasksDir, sessionsDir] { try? fm.createDirectory(at: d, withIntermediateDirectories: true) }
+chmod(root.path, 0o700)  // answers can hold secrets, and macOS homes are world-readable
 prune()
 announce()
 Thread.detachNewThread(doorbell)

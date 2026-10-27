@@ -1,0 +1,10 @@
+name: check
+on: [push, pull_request]
+jobs:
+  check:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - run: swiftc -O -o Handraise Overlay.swift
+      - run: swiftc -O -o handraise-server Server.swift
+      - run: swift Check.swift

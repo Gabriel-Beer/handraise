@@ -48,6 +48,7 @@ final class Store: ObservableObject {
         for d in [tasksDir, sessionsDir] {
             try? FileManager.default.createDirectory(at: d, withIntermediateDirectories: true)
         }
+        chmod(root.path, 0o700)  // answers can hold secrets, and macOS homes are world-readable
         let fd = open(tasksDir.path, O_EVTONLY)
         watcher = DispatchSource.makeFileSystemObjectSource(fileDescriptor: fd, eventMask: .write, queue: .main)
         watcher?.setEventHandler { [weak self] in self?.reload() }
@@ -109,7 +110,7 @@ extension View {
 }
 
 struct IconButton: View {
-    let icon: String, hot: String, armed: Bool, action: () -> Void
+    let icon: String, hot: String, label: String, armed: Bool, action: () -> Void
     @State private var hover = false
     var body: some View {
         Button(action: action) {
@@ -119,6 +120,7 @@ struct IconButton: View {
                 .contentTransition(.symbolEffect(.replace))
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(label)
         .onHover { hover = $0 }
     }
 }
@@ -151,17 +153,17 @@ struct Row: View {
                 Spacer(minLength: 0)
                 HStack(spacing: 10) {  // only the circle is there until you hover it, so clicks pass through where the rest would be
                     if hover && store.armed, let url = link {  // agents hand over localhost URLs a lot
-                        IconButton(icon: "arrow.up.right.square", hot: "arrow.up.right.square.fill", armed: store.armed) {
+                        IconButton(icon: "arrow.up.right.square", hot: "arrow.up.right.square.fill", label: "Open link", armed: store.armed) {
                             NSWorkspace.shared.open(url)
                         }.help(url.absoluteString)
                     }
                     if hover && store.armed {  // drop a task you won't do, without answering
-                        IconButton(icon: "xmark.circle", hot: "xmark.circle.fill", armed: store.armed) { store.drop(task) }
+                        IconButton(icon: "xmark.circle", hot: "xmark.circle.fill", label: "Drop task", armed: store.armed) { store.drop(task) }
                     }
                     if editing || (hover && store.armed && !task.ask) {  // send-now shows up only when it makes sense
-                        IconButton(icon: "paperplane", hot: "paperplane.fill", armed: store.armed) { submit(now: true) }
+                        IconButton(icon: "paperplane", hot: "paperplane.fill", label: "Send now", armed: store.armed) { submit(now: true) }
                     }
-                    IconButton(icon: "circle", hot: "checkmark.circle.fill", armed: store.armed) { tap() }
+                    IconButton(icon: "circle", hot: "checkmark.circle.fill", label: task.ask ? "Answer" : "Done", armed: store.armed) { tap() }
                 }
                 .onHover { hover = $0 }
                 .onChange(of: store.armed) { if !$1 { hover = false } }  // the exit event is lost once the panel lets clicks through
@@ -219,6 +221,7 @@ struct CopyButton: View {
             Image(systemName: copied ? "checkmark" : "doc.on.doc").font(.body).foregroundStyle(Color.white.opacity(0.8))
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(copied ? "Copied" : "Copy resume command")
     }
 }
 
@@ -256,7 +259,9 @@ struct OverlayView: View {
                                 Spacer(minLength: 0)
                                 HStack(spacing: 8) {
                                     CopyButton(text: cmd).help("Copy the resume command")
-                                    IconButton(icon: "xmark.circle", hot: "xmark.circle.fill", armed: store.armed) { store.discard(session: sid) }
+                                    IconButton(icon: "xmark.circle", hot: "xmark.circle.fill", label: "Discard answers", armed: store.armed) {
+                                        store.discard(session: sid)
+                                    }
                                 }.hot("offline-\(sid)")
                             }
                         } else if hasDone && count == 0 {
@@ -264,7 +269,7 @@ struct OverlayView: View {
                                 Label("All done, waiting for the agent to collect", systemImage: "checkmark")
                                     .font(.caption).opacity(0.6)
                                 Spacer(minLength: 0)
-                                IconButton(icon: "xmark.circle", hot: "xmark.circle.fill", armed: store.armed) { store.discard(session: sid) }
+                                IconButton(icon: "xmark.circle", hot: "xmark.circle.fill", label: "Dismiss", armed: store.armed) { store.discard(session: sid) }
                                     .hot("done-\(sid)")
                             }
                         }
@@ -305,6 +310,7 @@ struct OverlayView: View {
                 .animation(.easeInOut(duration: 0.2), value: folded)
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(folded ? "Show tasks" : "Fold tasks")
     }
 }
 

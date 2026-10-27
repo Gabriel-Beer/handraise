@@ -3,6 +3,8 @@
 # and adds the MCP server to Claude Code.
 set -e
 cd "$(dirname "$0")"
+[ "$(sw_vers -productVersion | cut -d. -f1)" -ge 26 ] || { echo "handraise needs macOS 26 or later (Liquid Glass)"; exit 1; }
+command -v swiftc >/dev/null || { echo "swiftc not found: run xcode-select --install"; exit 1; }
 rm -rf Handraise.app
 mkdir -p Handraise.app/Contents/MacOS Handraise.app/Contents/Resources
 swiftc -O -o Handraise.app/Contents/MacOS/Handraise Overlay.swift
@@ -29,6 +31,11 @@ PL
 launchctl bootout "gui/$(id -u)" "$PLIST" 2>/dev/null || true
 launchctl bootstrap "gui/$(id -u)" "$PLIST"
 
+if ! command -v claude >/dev/null; then
+  echo "installed Handraise.app, but the claude CLI is not on PATH. Once it is, run:"
+  echo "  claude mcp add --scope user handraise -- $PWD/handraise-server"
+  exit 0
+fi
 claude mcp remove --scope user handraise >/dev/null 2>&1 || true
 claude mcp add --scope user handraise -- "$PWD/handraise-server"
 echo "installed: Handraise.app in ~/Applications and running, MCP server 'handraise' registered. Restart open Claude sessions to see the tools."

@@ -161,6 +161,9 @@ let left = (callJSON("list_tasks") as? [Dict] ?? []).compactMap { $0["id"] as? S
 check(!left.contains(plain) && !left.contains(lo), "not cleared: \(left)")
 
 check(call("remove_task", ["id": "../x"]).error, "path traversal accepted")
+check(call("add_task", ["title": "  "]).error, "empty title accepted")
+let mode = (try? fm.attributesOfItem(atPath: root.path))?[.posixPermissions] as? Int ?? 0
+check(mode & 0o077 == 0, "~/.handraise readable by others: \(String(mode, radix: 8))")
 
 // The doorbell polls forever; each tick used to leave an NSMutableArray in a pool that never drained (~17 MB/hour).
 func arrays() -> Int {

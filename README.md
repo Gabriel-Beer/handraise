@@ -1,5 +1,7 @@
 # handraise
 
+[![check](https://github.com/Gabriel-Beer/handraise/actions/workflows/check.yml/badge.svg)](https://github.com/Gabriel-Beer/handraise/actions/workflows/check.yml)
+
 A Liquid Glass overlay for macOS where your Claude Code agents raise their hand.
 Agents post tasks and questions for you, ranked by priority. You tick them off or
 type an answer, and the agent gets everything back in its session.
@@ -40,7 +42,7 @@ running as a login item (`brew services`, or `~/Library/LaunchAgents/com.handrai
 from `install.sh`), and add the `handraise` MCP server to Claude Code for all your projects. Claude sessions that were
 already open need `/mcp` or a restart to see the new tools.
 
-The menu bar gets a small icon with **Hide overlay**, a **Glass** submenu with every Liquid Glass knob (Regular or Clear variant, interactive shimmer, a tint, and a strength slider from clear to the stock material, all remembered), and **Quit**. After a Quit, bring
+The menu bar gets a small icon with the number of open tasks next to it, **Hide overlay**, **Answer next question**, a **Glass** submenu with every Liquid Glass knob (Regular or Clear variant, interactive shimmer, a tint, and a strength slider from clear to the stock material, all remembered), and **Quit**. After a Quit, bring
 it back with `brew services restart handraise`, or for a source install:
 
 ```sh
@@ -90,6 +92,8 @@ server tells the agent to block in `wait_for_user` right after adding its tasks.
 - **Circle**: finishes a plain task. On a question it opens a text field; Enter saves the answer, an empty one counts as *yes*, Escape closes the field.
 - **Paper plane**: same, but delivered to the agent right away instead of waiting for the rest. Hover the circle to reveal it on a plain task; on a question it sits next to the field.
 - **Cross**: drops a task you won't do, without answering. Revealed by hovering the circle too.
+- **Arrow**: when a title contains a URL (agents hand over `localhost` links a lot), hovering the circle also reveals a button that opens the first one.
+- **⌃⌥H**: opens the most urgent question for typing from anywhere, even with the overlay hidden; press it again to cycle to the next one. Escape hands the keyboard back.
 - Only four tasks show at a time, most urgent first, with a `+N more` line for the rest.
 - **Chevron** next to an agent's name: folds that agent's tasks away, leaving the name and how many are waiting; click again to unfold.
 - When every task of one agent is done, the card shows *All done* until the agent's next `wait_for_user` collects the results. An agent that never calls it never hears back, so the cross lets you drop them.
@@ -120,7 +124,8 @@ All in `Overlay.swift`, then rerun `./install.sh`:
 
 - rows shown at once: `shown`
 - slack around the buttons before clicks pass through: the `insetBy` in the mouse timer
-- position: the `resized` closure pins the card to the top-right of the screen that is active at launch
+- position: the `resized` closure pins the card to the top-right of the main screen
+- answer hotkey: the `RegisterEventHotKey` call at the bottom
 - app icon: `swift Icon.swift AppIcon.icns` redraws it from the menu bar glyph
 
 ## Check
@@ -130,6 +135,10 @@ swiftc -O -o handraise-server Server.swift && swift Check.swift
 ```
 
 Drives the real server over raw stdio JSON-RPC, plays the overlay by editing the task files, and stands in for the session inbox to check what the server posts.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Uninstall
 
