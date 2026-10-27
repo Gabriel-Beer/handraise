@@ -44,6 +44,7 @@ Thread.detachNewThread {
 }
 
 // Session files of a dead server: the orphan gets pruned at startup, the one a task still points at stays for resume.
+for d in [tasks, session.deletingLastPathComponent()] { try! fm.createDirectory(at: d, withIntermediateDirectories: true) }
 let gone = Process()
 gone.executableURL = URL(fileURLWithPath: "/usr/bin/true")
 try! gone.run()
