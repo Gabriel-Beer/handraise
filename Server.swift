@@ -225,7 +225,7 @@ func handle(_ req: Dict) {
     case "initialize":
         send(["jsonrpc": "2.0", "id": id, "result": [
             "protocolVersion": params["protocolVersion"] as? String ?? "2025-06-18", "capabilities": ["tools": Dict()],
-            "serverInfo": ["name": "handraise", "version": "0.5.0"], "instructions": instructions]])
+            "serverInfo": ["name": "handraise", "version": "0.5.1"], "instructions": instructions]])
     case "ping": send(["jsonrpc": "2.0", "id": id, "result": Dict()])
     case "tools/list": send(["jsonrpc": "2.0", "id": id, "result": ["tools": tools]])
     case "resources/list": send(["jsonrpc": "2.0", "id": id, "result": ["resources": [Any]()]])
