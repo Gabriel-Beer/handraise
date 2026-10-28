@@ -111,17 +111,17 @@ extension View {
 
 struct IconButton: View {
     let icon: String, hot: String, label: String, armed: Bool, action: () -> Void
-    @State private var hover = false
+    private let hover = State(initialValue: false)  // not @State: see Row
     var body: some View {
         Button(action: action) {
-            Image(systemName: hover && armed ? hot : icon)
+            Image(systemName: hover.wrappedValue && armed ? hot : icon)
                 .font(.title3)
-                .foregroundStyle(hover && armed ? Color.green : Color.white.opacity(0.7))
+                .foregroundStyle(hover.wrappedValue && armed ? Color.green : Color.white.opacity(0.7))
                 .contentTransition(.symbolEffect(.replace))
         }
         .buttonStyle(.plain)
         .accessibilityLabel(label)
-        .onHover { hover = $0 }
+        .onHover { hover.wrappedValue = $0 }
     }
 }
 
@@ -140,8 +140,9 @@ struct Badge: View {  // priority as contrast, not color: P1 is a solid disc, P4
 struct Row: View {
     let task: Task
     @ObservedObject var store: Store
-    @State private var text = ""
-    @State private var hover = false
+    // Not @State: on the macOS 27 SDK it is a macro whose plugin ships with Xcode only, so CLT-only (Homebrew) builds fail.
+    private let text = State(initialValue: "")
+    private let hover = State(initialValue: false)
     @FocusState private var focused: Bool
     var editing: Bool { store.editing == task.id }
 
@@ -149,28 +150,28 @@ struct Row: View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .top, spacing: 10) {  // top-aligned so the circle stays under the pointer when the title unfolds
                 Badge(p: task.priority)
-                Text(task.title).font(.body).lineLimit(editing || (hover && store.armed) ? nil : 3)  // hover the circle to read a long one
+                Text(task.title).font(.body).lineLimit(editing || (hover.wrappedValue && store.armed) ? nil : 3)  // hover the circle to read a long one
                 Spacer(minLength: 0)
                 HStack(spacing: 10) {  // only the circle is there until you hover it, so clicks pass through where the rest would be
-                    if hover && store.armed, let url = link {  // agents hand over localhost URLs a lot
+                    if hover.wrappedValue && store.armed, let url = link {  // agents hand over localhost URLs a lot
                         IconButton(icon: "arrow.up.right.square", hot: "arrow.up.right.square.fill", label: "Open link", armed: store.armed) {
                             NSWorkspace.shared.open(url)
                         }.help(url.absoluteString)
                     }
-                    if hover && store.armed {  // drop a task you won't do, without answering
+                    if hover.wrappedValue && store.armed {  // drop a task you won't do, without answering
                         IconButton(icon: "xmark.circle", hot: "xmark.circle.fill", label: "Drop task", armed: store.armed) { store.drop(task) }
                     }
-                    if editing || (hover && store.armed && !task.ask) {  // send-now shows up only when it makes sense
+                    if editing || (hover.wrappedValue && store.armed && !task.ask) {  // send-now shows up only when it makes sense
                         IconButton(icon: "paperplane", hot: "paperplane.fill", label: "Send now", armed: store.armed) { submit(now: true) }
                     }
                     IconButton(icon: "circle", hot: "checkmark.circle.fill", label: task.ask ? "Answer" : "Done", armed: store.armed) { tap() }
                 }
-                .onHover { hover = $0 }
-                .onChange(of: store.armed) { if !$1 { hover = false } }  // the exit event is lost once the panel lets clicks through
+                .onHover { hover.wrappedValue = $0 }
+                .onChange(of: store.armed) { if !$1 { hover.wrappedValue = false } }  // the exit event is lost once the panel lets clicks through
                 .hot(task.id)
             }
             if editing {
-                TextField("Answer, or just Enter for yes", text: $text, axis: .vertical)
+                TextField("Answer, or just Enter for yes", text: text.projectedValue, axis: .vertical)
                     .lineLimit(1...8)
                     .textFieldStyle(.plain)
                     .focused($focused)
@@ -180,7 +181,7 @@ struct Row: View {
                     .onAppear { focused = true }
                     .onSubmit { submit(now: false) }
                     .onKeyPress(.return, phases: .down) { _ in submit(now: false); return .handled }  // a vertical field would insert a newline
-                    .onChange(of: text) { if $1.hasSuffix("\n") { submit(now: false) } }  // in case the key press slipped through
+                    .onChange(of: text.wrappedValue) { if $1.hasSuffix("\n") { submit(now: false) } }  // in case the key press slipped through
                     .onExitCommand { close() }
             }
         }
@@ -198,7 +199,7 @@ struct Row: View {
     }
 
     func submit(now: Bool) {
-        let a = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let a = text.wrappedValue.trimmingCharacters(in: .whitespacesAndNewlines)
         close()
         store.finish(task, answer: task.ask ? (a.isEmpty ? "yes" : a) : nil, sendNow: now)  // confirming without typing approves
     }
@@ -211,17 +212,17 @@ struct Row: View {
 
 struct CopyButton: View {
     let text: String
-    @State private var copied = false
+    private let copied = State(initialValue: false)  // not @State: see Row
     var body: some View {
         Button {
             NSPasteboard.general.clearContents()
             NSPasteboard.general.setString(text, forType: .string)
-            copied = true
+            copied.wrappedValue = true
         } label: {
-            Image(systemName: copied ? "checkmark" : "doc.on.doc").font(.body).foregroundStyle(Color.white.opacity(0.8))
+            Image(systemName: copied.wrappedValue ? "checkmark" : "doc.on.doc").font(.body).foregroundStyle(Color.white.opacity(0.8))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(copied ? "Copied" : "Copy resume command")
+        .accessibilityLabel(copied.wrappedValue ? "Copied" : "Copy resume command")
     }
 }
 
