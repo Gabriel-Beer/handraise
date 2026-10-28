@@ -295,7 +295,8 @@ struct OverlayView: View {
     var glass: Glass {
         var g: Glass = store.look.clear ? .clear : .regular
         if store.look.interactive { g = g.interactive() }
-        if let c = ["Light": Color.white, "Dark": .black, "Accent": .accentColor][store.look.tint] { g = g.tint(c) }
+        // An opaque tint turns the glass into a flat slab of that color, so it only gets a wash of it.
+        if let c = ["Light": Color.white, "Dark": .black, "Accent": .accentColor][store.look.tint] { g = g.tint(c.opacity(0.3)) }
         return g
     }
 
